@@ -1,7 +1,21 @@
 node_modules/
 templates/*.json
+templates/*/
 output/*.html
+output/*.json
+output/*.md
 *.log
 .DS_Store
 .env
 
+# Storage and cache directories
+storage/
+variants/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
