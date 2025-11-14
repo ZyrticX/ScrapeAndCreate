@@ -1,110 +1,131 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת יצירת ורסיות עמודים</title>
+    <title>Article Variant Generator</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>מערכת יצירת ורסיות עמודים עם AI</h1>
+            <h1>AI Article Variant Generator</h1>
+            <p style="color: #666; margin-top: 10px;">Generate multiple article variants with different content, same design</p>
         </header>
 
         <main>
-            <!-- Step 1: Template Selection -->
-            <section id="step1" class="step active">
-                <h2>שלב 1: בחירת Template</h2>
+            <!-- Template Selection -->
+            <section class="step">
+                <h2>1. Select Template</h2>
                 
                 <div class="form-group">
-                    <label>
-                        <input type="radio" name="templateSource" value="existing" checked>
-                        בחר Template קיים
-                    </label>
-                    <label>
-                        <input type="radio" name="templateSource" value="new">
-                        צור Template חדש מ-URL
-                    </label>
-                </div>
-
-                <div id="existingTemplate" class="template-section">
-                    <label for="templateSelect">בחר Template:</label>
+                    <label for="templateSelect">Choose Template:</label>
                     <select id="templateSelect">
-                        <option value="">טוען templates...</option>
+                        <option value="">Loading templates...</option>
                     </select>
-                    <button id="previewTemplateBtn" class="btn btn-primary" style="margin-top: 10px; display: none;">תצוגה מקדימה</button>
-                    <div id="templatePreviewContainer" style="margin-top: 20px; display: none;">
-                        <h3>תצוגה מקדימה של Template:</h3>
-                        <iframe id="templatePreviewFrame" style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 5px;"></iframe>
+                    <div style="margin-top: 10px; display: none; gap: 10px;" id="templateActions">
+                        <button id="previewTemplateBtn" class="btn btn-secondary">Preview Template</button>
+                        <button id="downloadTemplateBtn" class="btn btn-primary">Download Template (ZIP)</button>
                     </div>
                 </div>
 
-                <div id="newTemplate" class="template-section" style="display: none;">
-                    <label for="urlInput">הזן URL:</label>
-                    <input type="url" id="urlInput" placeholder="https://example.com">
-                    <button id="scrapeBtn" class="btn btn-primary">סקרף ושמור Template</button>
+                <div id="templatePreviewContainer" style="margin-top: 20px; display: none;">
+                    <h3>Template Preview:</h3>
+                    <iframe id="templatePreviewFrame" style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 5px;"></iframe>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <strong>Or create new template from URL:</strong>
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <input type="url" id="urlInput" placeholder="https://example.com/article" style="flex: 1;">
+                        <button id="scrapeBtn" class="btn btn-primary">Scrape & Save</button>
+                    </div>
                     <div id="scrapeStatus" class="status"></div>
                 </div>
             </section>
 
-            <!-- Step 2: Section Selection -->
-            <section id="step2" class="step" style="display: none;">
-                <h2>שלב 2: בחירת Sections לשנות</h2>
-                <p style="margin-bottom: 15px; color: #666;">בחר את ה-sections שברצונך לשנות:</p>
-                <div id="sectionsList"></div>
-                <div id="step2Status" class="status" style="display: none;"></div>
-                <div style="margin-top: 20px;">
-                    <button id="continueToStep3Btn" class="btn btn-primary">המשך לשלב הבא</button>
-                </div>
-            </section>
+            <!-- Generation Settings -->
+            <section class="step" id="settingsSection" style="display: none;">
+                <h2>2. Generation Settings</h2>
 
-            <!-- Step 3: Language/Country Selection -->
-            <section id="step3" class="step" style="display: none;">
-                <h2>שלב 3: בחירת שפה ומדינה</h2>
-                
                 <div class="form-group">
-                    <label for="languageSelect">שפה:</label>
+                    <label for="numVariants">Number of Article Variants:</label>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <input type="range" id="numVariants" min="1" max="10" value="1" style="flex: 1;">
+                        <span id="numVariantsValue" style="font-weight: bold; min-width: 30px;">1</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="languageSelect">Article Language:</label>
                     <select id="languageSelect">
-                        <option value="English">אנגלית</option>
-                        <option value="Hebrew">עברית</option>
-                        <option value="Spanish">ספרדית</option>
-                        <option value="French">צרפתית</option>
-                        <option value="German">גרמנית</option>
-                        <option value="Arabic">ערבית</option>
+                        <option value="English">English</option>
+                        <option value="Hebrew">Hebrew</option>
+                        <option value="Spanish">Spanish</option>
+                        <option value="French">French</option>
+                        <option value="German">German</option>
+                        <option value="Arabic">Arabic</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="countrySelect">מדינה:</label>
+                    <label for="countrySelect">Target Country:</label>
                     <select id="countrySelect">
-                        <option value="">לא נבחר</option>
-                        <option value="Israel">ישראל</option>
-                        <option value="United States">ארצות הברית</option>
-                        <option value="United Kingdom">בריטניה</option>
-                        <option value="South Africa">דרום אפריקה</option>
-                        <option value="Germany">גרמניה</option>
-                        <option value="France">צרפת</option>
+                        <option value="USA">United States</option>
+                        <option value="Israel">Israel</option>
+                        <option value="South Africa">South Africa</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="Germany">Germany</option>
+                        <option value="France">France</option>
+                        <option value="Spain">Spain</option>
                     </select>
                 </div>
 
-                <button id="generateBtn" class="btn btn-primary">צור ורסיה</button>
+                <div class="form-group">
+                    <label for="textModelSelect">Text Generation Model:</label>
+                    <select id="textModelSelect">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="generateImagesCheck">
+                        Generate Images (slower, optional)
+                    </label>
+                </div>
+
+                <div class="form-group" id="imageModelGroup" style="display: none;">
+                    <label for="imageModelSelect">Image Generation Model:</label>
+                    <select id="imageModelSelect">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+
+                <button id="generateBtn" class="btn btn-success" style="margin-top: 20px; font-size: 18px; padding: 15px 40px;">
+                    Generate Variants
+                </button>
                 <div id="generateStatus" class="status"></div>
+                <div id="progressContainer" style="display: none; margin-top: 20px;">
+                    <div class="progress-bar">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                    <p id="progressText" style="text-align: center; margin-top: 10px;"></p>
+                </div>
             </section>
 
-            <!-- Step 4: Preview and Download -->
-            <section id="step4" class="step" style="display: none;">
-                <h2>שלב 4: תצוגה מקדימה והורדה</h2>
-                <div id="previewContainer">
-                    <iframe id="previewFrame" style="width: 100%; height: 600px; border: 1px solid #ccc;"></iframe>
-                </div>
-                <button id="downloadBtn" class="btn btn-success">הורד ZIP</button>
+            <!-- Results -->
+            <section class="step" id="resultsSection" style="display: none;">
+                <h2>3. Generated Variants</h2>
+                <div id="variantsList"></div>
             </section>
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app-en.js"></script>
 </body>
 </html>
+
+
 
 

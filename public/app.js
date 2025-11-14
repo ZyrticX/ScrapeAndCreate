@@ -1,45 +1,27 @@
 let currentTemplateId = null;
-let currentVariantId = null;
-let availableSections = [];
+let availableTextModels = [];
+let availableImageModels = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     await loadTemplates();
+    await loadModels();
     setupEventListeners();
 });
 
 // Setup event listeners
 function setupEventListeners() {
-    // Template source selection
-    document.querySelectorAll('input[name="templateSource"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target.value === 'existing') {
-                document.getElementById('existingTemplate').style.display = 'block';
-                document.getElementById('newTemplate').style.display = 'none';
-            } else {
-                document.getElementById('existingTemplate').style.display = 'none';
-                document.getElementById('newTemplate').style.display = 'block';
-            }
-        });
-    });
-
-    // Scrape button
-    document.getElementById('scrapeBtn').addEventListener('click', handleScrape);
-
-    // Template selection
     document.getElementById('templateSelect').addEventListener('change', handleTemplateSelect);
-
-    // Preview template button
     document.getElementById('previewTemplateBtn').addEventListener('click', handlePreviewTemplate);
-
-    // Generate button
+    document.getElementById('downloadTemplateBtn').addEventListener('click', handleDownloadTemplate);
+    document.getElementById('scrapeBtn').addEventListener('click', handleScrape);
+    document.getElementById('numVariants').addEventListener('input', (e) => {
+        document.getElementById('numVariantsValue').textContent = e.target.value;
+    });
+    document.getElementById('generateImagesCheck').addEventListener('change', (e) => {
+        document.getElementById('imageModelGroup').style.display = e.target.checked ? 'block' : 'none';
+    });
     document.getElementById('generateBtn').addEventListener('click', handleGenerate);
-
-    // Download button
-    document.getElementById('downloadBtn').addEventListener('click', handleDownload);
-
-    // Continue to step 3 button
-    document.getElementById('continueToStep3Btn').addEventListener('click', handleContinueToStep3);
 }
 
 // Load templates
@@ -49,17 +31,124 @@ async function loadTemplates() {
         const templates = await response.json();
         
         const select = document.getElementById('templateSelect');
-        select.innerHTML = '<option value="">בחר Template...</option>';
+        select.innerHTML = '<option value="">Select template...</option>';
         
         templates.forEach(template => {
             const option = document.createElement('option');
             option.value = template.id;
-            option.textContent = `${template.title} (${new Date(template.createdAt).toLocaleDateString('he-IL')})`;
+            option.textContent = `${template.title} (${new Date(template.createdAt).toLocaleDateString()})`;
             select.appendChild(option);
         });
     } catch (error) {
         console.error('Error loading templates:', error);
-        showStatus('scrapeStatus', 'שגיאה בטעינת templates', 'error');
+        showStatus('scrapeStatus', 'Error loading templates', 'error');
+    }
+}
+
+// Load models from OpenRouter
+async function loadModels() {
+    try {
+        // Load text models
+        const textResponse = await fetch('/api/models/text');
+        availableTextModels = await textResponse.json();
+        
+        const textSelect = document.getElementById('textModelSelect');
+        textSelect.innerHTML = '<option value="">Auto (try multiple models)</option>';
+        
+        // Add top models first
+        const topModels = availableTextModels.filter(m => 
+            m.id.includes('qwen3') || m.id.includes('claude-3.5') || m.id.includes('gpt-4')
+        ).slice(0, 15);
+        
+        topModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            textSelect.appendChild(option);
+        });
+
+        // Load image models
+        const imageResponse = await fetch('/api/models/image');
+        availableImageModels = await imageResponse.json();
+        
+        const imageSelect = document.getElementById('imageModelSelect');
+        imageSelect.innerHTML = '<option value="">Auto (try multiple models)</option>';
+        
+        availableImageModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            imageSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading models:', error);
+    }
+}
+
+// Handle template selection
+async function handleTemplateSelect() {
+    const templateId = document.getElementById('templateSelect').value;
+    const templateActions = document.getElementById('templateActions');
+    
+    if (!templateId) {
+        templateActions.style.display = 'none';
+        document.getElementById('settingsSection').style.display = 'none';
+        return;
+    }
+
+    currentTemplateId = templateId;
+    templateActions.style.display = 'flex';
+    document.getElementById('settingsSection').style.display = 'block';
+}
+
+// Handle template preview
+async function handlePreviewTemplate() {
+    if (!currentTemplateId) return;
+
+    const previewContainer = document.getElementById('templatePreviewContainer');
+    const previewFrame = document.getElementById('templatePreviewFrame');
+
+    try {
+        const response = await fetch(`/api/templates/${currentTemplateId}`);
+        const template = await response.json();
+        
+        previewContainer.style.display = 'block';
+        
+        if (template.originalHtml) {
+            previewFrame.srcdoc = template.originalHtml;
+        } else {
+            previewFrame.srcdoc = '<html><body><p>Preview not available</p></body></html>';
+        }
+    } catch (error) {
+        console.error('Error loading template preview:', error);
+        previewFrame.srcdoc = '<html><body><p style="color: red;">Error loading preview</p></body></html>';
+    }
+}
+
+// Handle template download
+async function handleDownloadTemplate() {
+    if (!currentTemplateId) return;
+
+    const downloadBtn = document.getElementById('downloadTemplateBtn');
+    const originalText = downloadBtn.textContent;
+    
+    try {
+        downloadBtn.textContent = 'Preparing Download...';
+        downloadBtn.disabled = true;
+
+        // Trigger download
+        window.location.href = `/api/templates/${currentTemplateId}/download`;
+        
+        // Reset button after a short delay
+        setTimeout(() => {
+            downloadBtn.textContent = originalText;
+            downloadBtn.disabled = false;
+        }, 2000);
+    } catch (error) {
+        console.error('Error downloading template:', error);
+        alert('Error downloading template: ' + error.message);
+        downloadBtn.textContent = originalText;
+        downloadBtn.disabled = false;
     }
 }
 
@@ -67,11 +156,11 @@ async function loadTemplates() {
 async function handleScrape() {
     const url = document.getElementById('urlInput').value;
     if (!url) {
-        showStatus('scrapeStatus', 'אנא הזן URL', 'error');
+        showStatus('scrapeStatus', 'Please enter a URL', 'error');
         return;
     }
 
-    showStatus('scrapeStatus', 'מבצע scraping...', 'info');
+    showStatus('scrapeStatus', 'Scraping page...', 'info');
     
     try {
         const response = await fetch('/api/scrape', {
@@ -83,242 +172,141 @@ async function handleScrape() {
         const data = await response.json();
         
         if (data.success) {
-            showStatus('scrapeStatus', 'Template נוצר בהצלחה!', 'success');
+            showStatus('scrapeStatus', 'Template created successfully!', 'success');
             currentTemplateId = data.templateId;
-            availableSections = data.sections || [];
             
-            // Reload templates and select the new one
             await loadTemplates();
             document.getElementById('templateSelect').value = data.templateId;
-            
-            // Move to step 2
-            showStep(2);
-            renderSections();
+            document.getElementById('settingsSection').style.display = 'block';
         } else {
-            showStatus('scrapeStatus', data.error || 'שגיאה ב-scraping', 'error');
+            showStatus('scrapeStatus', data.error || 'Scraping error', 'error');
         }
     } catch (error) {
         console.error('Scraping error:', error);
-        showStatus('scrapeStatus', 'שגיאה ב-scraping: ' + error.message, 'error');
+        showStatus('scrapeStatus', 'Scraping error: ' + error.message, 'error');
     }
-}
-
-// Handle template selection
-async function handleTemplateSelect() {
-    const templateId = document.getElementById('templateSelect').value;
-    const previewBtn = document.getElementById('previewTemplateBtn');
-    const previewContainer = document.getElementById('templatePreviewContainer');
-    
-    if (!templateId) {
-        previewBtn.style.display = 'none';
-        previewContainer.style.display = 'none';
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/templates/${templateId}`);
-        const template = await response.json();
-        
-        currentTemplateId = templateId;
-        
-        // Show preview button
-        previewBtn.style.display = 'inline-block';
-        
-        // Get available sections from template context
-        // Try availableSections first, then fallback to sections.bySection keys
-        if (template.context && template.context.availableSections) {
-            availableSections = template.context.availableSections;
-        } else if (template.context && template.context.sections && template.context.sections.bySection) {
-            availableSections = Object.keys(template.context.sections.bySection).filter(
-                key => template.context.sections.bySection[key] > 0
-            );
-        } else {
-            // Fallback: use default sections
-            availableSections = ['header', 'main', 'footer'];
-        }
-        
-        // Show step 2
-        showStep(2);
-        renderSections();
-    } catch (error) {
-        console.error('Error loading template:', error);
-        showStatus('scrapeStatus', 'שגיאה בטעינת template', 'error');
-    }
-}
-
-// Handle template preview
-async function handlePreviewTemplate() {
-    const templateId = document.getElementById('templateSelect').value;
-    if (!templateId) return;
-
-    const previewContainer = document.getElementById('templatePreviewContainer');
-    const previewFrame = document.getElementById('templatePreviewFrame');
-
-    try {
-        const response = await fetch(`/api/templates/${templateId}`);
-        const template = await response.json();
-        
-        // Show preview container
-        previewContainer.style.display = 'block';
-        
-        // Load HTML into iframe
-        if (template.originalHtml) {
-            previewFrame.srcdoc = template.originalHtml;
-        } else {
-            previewFrame.srcdoc = '<html><body><p>תצוגה מקדימה לא זמינה</p></body></html>';
-        }
-    } catch (error) {
-        console.error('Error loading template preview:', error);
-        previewFrame.srcdoc = '<html><body><p style="color: red;">שגיאה בטעינת תצוגה מקדימה</p></body></html>';
-    }
-}
-
-// Render sections
-function renderSections() {
-    const container = document.getElementById('sectionsList');
-    container.innerHTML = '';
-    
-    if (!availableSections || availableSections.length === 0) {
-        container.innerHTML = '<p style="color: #999; padding: 20px; text-align: center;">לא נמצאו sections זמינים. אנא בחר template אחר או צור template חדש.</p>';
-        return;
-    }
-    
-    const sectionNames = {
-        header: 'Header',
-        main: 'תוכן ראשי',
-        footer: 'Footer',
-        forms: 'טפסים',
-        sidebar: 'Sidebar',
-        other: 'אחר'
-    };
-    
-    availableSections.forEach(section => {
-        const div = document.createElement('div');
-        div.className = 'section-checkbox';
-        const checkboxId = `section-${section}`;
-        div.innerHTML = `
-            <input type="checkbox" id="${checkboxId}" value="${section}">
-            <label for="${checkboxId}">${sectionNames[section] || section}</label>
-        `;
-        
-        const checkbox = div.querySelector('input');
-        
-        // Handle checkbox change
-        checkbox.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                div.classList.add('checked');
-            } else {
-                div.classList.remove('checked');
-            }
-        });
-        
-        // Handle click on div (toggle checkbox)
-        div.addEventListener('click', (e) => {
-            // Don't toggle if clicking directly on checkbox (it will toggle itself)
-            if (e.target !== checkbox) {
-                checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change'));
-            }
-        });
-        
-        container.appendChild(div);
-    });
 }
 
 // Handle generate
 async function handleGenerate() {
-    const sections = Array.from(document.querySelectorAll('#sectionsList input[type="checkbox"]:checked'))
-        .map(cb => cb.value);
-    
-    if (sections.length === 0) {
-        showStatus('generateStatus', 'אנא בחר לפחות section אחד', 'error');
+    if (!currentTemplateId) {
+        showStatus('generateStatus', 'Please select a template first', 'error');
         return;
     }
 
+    const numVariants = parseInt(document.getElementById('numVariants').value);
     const language = document.getElementById('languageSelect').value;
     const country = document.getElementById('countrySelect').value;
+    const textModel = document.getElementById('textModelSelect').value || null;
+    const generateImages = document.getElementById('generateImagesCheck').checked;
+    const imageModel = generateImages ? (document.getElementById('imageModelSelect').value || null) : null;
 
-    showStatus('generateStatus', 'יוצר ורסיה... זה עשוי לקחת כמה דקות', 'info');
+    showProgress(true, 0, `Generating ${numVariants} variant(s)...`);
     
-    try {
-        const response = await fetch('/api/generate-variant', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                templateId: currentTemplateId,
-                sections,
-                language,
-                country: country || null
-            })
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-            currentVariantId = data.variantId;
-            showStatus('generateStatus', 'ורסיה נוצרה בהצלחה!', 'success');
+    const variants = [];
+    
+    for (let i = 0; i < numVariants; i++) {
+        try {
+            updateProgress((i / numVariants) * 100, `Generating variant ${i + 1}/${numVariants}...`);
             
-            // Load and show preview
-            await showPreview(data.variantId);
-            showStep(4);
-        } else {
-            showStatus('generateStatus', data.error || 'שגיאה ביצירת ורסיה', 'error');
+            const response = await fetch('/api/generate-variant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    templateId: currentTemplateId,
+                    language,
+                    country,
+                    textModel,
+                    imageModel,
+                    generateImages
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                variants.push(data);
+            } else {
+                console.error(`Error generating variant ${i + 1}:`, data.error);
+            }
+        } catch (error) {
+            console.error(`Error generating variant ${i + 1}:`, error);
         }
-    } catch (error) {
-        console.error('Generation error:', error);
-        showStatus('generateStatus', 'שגיאה ביצירת ורסיה: ' + error.message, 'error');
     }
+
+    updateProgress(100, `Completed! Generated ${variants.length}/${numVariants} variant(s)`);
+    
+    setTimeout(() => {
+        showProgress(false);
+        displayResults(variants);
+    }, 1000);
 }
 
-// Show preview
-async function showPreview(variantId) {
+// Display results
+function displayResults(variants) {
+    document.getElementById('resultsSection').style.display = 'block';
+    const container = document.getElementById('variantsList');
+    container.innerHTML = '';
+
+    variants.forEach((variant, index) => {
+        const div = document.createElement('div');
+        div.className = 'variant-card';
+        div.innerHTML = `
+            <h3>Variant ${index + 1}</h3>
+            <p><strong>Language:</strong> ${variant.metadata.targetLanguage}</p>
+            <p><strong>Country:</strong> ${variant.metadata.targetCountry}</p>
+            <p><strong>Model:</strong> ${variant.metadata.textModel}</p>
+            <p><strong>API Calls:</strong> ${variant.metadata.apiCalls}</p>
+            <p><strong>Modified Elements:</strong> ${variant.metadata.elementsModified}</p>
+            <p><strong>Comments:</strong> ${variant.metadata.commentsModified}</p>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-primary" onclick="previewVariant('${variant.variantId}')">Preview</button>
+                <button class="btn btn-success" onclick="downloadVariant('${variant.variantId}')">Download ZIP</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Preview variant
+window.previewVariant = async function(variantId) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+        <div style="background:white;width:90%;height:90%;border-radius:10px;padding:20px;position:relative;">
+            <button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:10px;right:10px;padding:10px 20px;background:#dc3545;color:white;border:none;border-radius:5px;cursor:pointer;">Close</button>
+            <iframe id="previewFrame" style="width:100%;height:calc(100% - 50px);border:1px solid #ccc;margin-top:30px;"></iframe>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
     try {
         const response = await fetch(`/api/variants/${variantId}`);
         const variant = await response.json();
-        
-        const iframe = document.getElementById('previewFrame');
-        iframe.srcdoc = variant.html;
+        document.getElementById('previewFrame').srcdoc = variant.html;
     } catch (error) {
         console.error('Error loading preview:', error);
     }
-}
+};
 
-// Handle continue to step 3
-function handleContinueToStep3() {
-    const selectedSections = Array.from(document.querySelectorAll('#sectionsList input[type="checkbox"]:checked'))
-        .map(cb => cb.value);
-    
-    if (selectedSections.length === 0) {
-        showStatus('step2Status', 'אנא בחר לפחות section אחד להמשך', 'error');
-        return;
+// Download variant
+window.downloadVariant = function(variantId) {
+    window.location.href = `/api/variants/${variantId}/download`;
+};
+
+// Show/hide progress
+function showProgress(show, percent = 0, text = '') {
+    const container = document.getElementById('progressContainer');
+    container.style.display = show ? 'block' : 'none';
+    if (show) {
+        updateProgress(percent, text);
     }
-    
-    // Hide error if exists
-    const statusEl = document.getElementById('step2Status');
-    if (statusEl) {
-        statusEl.style.display = 'none';
-    }
-    
-    // Move to step 3
-    showStep(3);
 }
 
-// Handle download
-function handleDownload() {
-    if (!currentVariantId) return;
-    
-    window.location.href = `/api/variants/${currentVariantId}/download`;
-}
-
-// Show step
-function showStep(stepNumber) {
-    document.querySelectorAll('.step').forEach((step, index) => {
-        if (index + 1 === stepNumber) {
-            step.style.display = 'block';
-        } else {
-            step.style.display = 'none';
-        }
-    });
+// Update progress
+function updateProgress(percent, text) {
+    document.getElementById('progressBar').style.width = `${percent}%`;
+    document.getElementById('progressText').textContent = text;
 }
 
 // Show status
@@ -328,5 +316,7 @@ function showStatus(elementId, message, type) {
     element.className = `status ${type}`;
     element.style.display = 'block';
 }
+
+
 
 
